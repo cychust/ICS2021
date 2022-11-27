@@ -5,123 +5,187 @@
 
 #if !defined(__ISA_NATIVE__) || defined(__NATIVE_USE_KLIB__)
 
-int printf(const char *fmt, ...) { panic("Not implemented"); }
+int vsprintf(char*, const char*, va_list);
 
-void itoa(int num, char *buf) {
-  int isNegative = 0;
-  if (num == 0) {
-    buf[0] = '0';
-    buf[1] = '\0';
-    return;
-  }
+// Maximum buffer: 65536
+char printf_buf[65536];
 
-  if (num < 0) {
-    isNegative = 1;
-    num = -num;
+int printf(const char *fmt, ...) {
+  va_list args;
+  va_start(args, fmt);
+  vsprintf(printf_buf, fmt, args);
+  va_end(args);
+  char *p = printf_buf;
+  while (*p) {
+    putch(*p);
+    p++;
   }
-  int i = 0;
-  while (num != 0) {
-    buf[i++] = num % 10 + '0';
-    num = num / 10;
-  }
-  if (isNegative == 1) {
-    buf[i++] = '-';
-  }
-  buf[i] = '\0';
-  for (int j = 0; j <= (i - 1) / 2; j++) {
-    char tmp = buf[j];
-    buf[j] = buf[i - 1 - j];
-    buf[i - 1 - j] = tmp;
-  }
-  return;
+  return 0;
 }
 
-void sprintf_base(char **pout, char **pin, va_list *args) {
-  // switch (**pin) {
-  //   case 'd': {
-  //     char buf[32] = {0};
-  //     int num = va_arg(*args, int);
-  //     itoa(num, buf);
+static struct {
+  int lpad;
+  char pad_char;
+} pref;
 
-  //     memcpy(*pout, buf, strlen(buf));
-  //     (*pout) += strlen(buf);
-  //     break;
-  //   }
-  //   case 's': {
-  //     char *s = va_arg(*args, char *);
-  //     memcpy(*pout, s, strlen(s));
-  //     (*pout) += strlen(s);
+void sprint_basic_format(char** pout, char** pin, va_list* args) {
+  if (**pin == 's') {
+    char *p = va_arg(*args, char*);
+    while (*p) *(*pout)++ = *p++;
+  } else if (**pin == 'd') {
+    int val = va_arg(*args, int);
+    int f = 1;
+    if (val < 0) f = -1;
 
-  //     break;
-  //   }
-  //   default:
-  //     // printf("dfsfd\n");
-  //     break;
-  // }
+    int buf[24] = {0};
+    int i = 0;
+    for (; i < 10 && val; i++) {
+      buf[i] = (val % 10) * f;
+      val /= 10;
+    }
+
+    if (i == 0) i++;
+    if (f == -1 && pref.pad_char == '0') *(*pout)++ = '-';
+    for (int j = 0; j < pref.lpad - i - (f == -1); j++)
+      *(*pout)++ = pref.pad_char;
+    if (f == -1 && pref.pad_char == ' ') *(*pout)++ = '-';
+    
+    for (i--; i >= 0; i--) {
+      *(*pout)++ = buf[i] + '0';
+    }
+  } else if (**pin == 'u') {
+    unsigned int val = va_arg(*args, unsigned int);
+    int buf[24] = {0};
+    int i = 0;
+    for (; i < 10 && val; i++) {
+      buf[i] = (val % 10);
+      val /= 10;
+    }
+    if (i == 0) i++;
+    for (int j = 0; j < pref.lpad - i; j++)
+      *(*pout)++ = pref.pad_char;
+    for (i--; i >= 0; i--) {
+      *(*pout)++ = buf[i] + '0';
+    }
+  } else if (**pin == 'x') {
+    const char hex_char[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+    unsigned int val = va_arg(*args, unsigned int);
+    int buf[24] = {0};
+    int i = 0;
+    for (; i < 10 && val; i++) {
+      buf[i] = (val % 16);
+      val /= 16;
+    }
+
+    if (i == 0) i++;
+    for (int j = 0; j < pref.lpad - i; j++)
+      *(*pout)++ = pref.pad_char;
+    for (i--; i >= 0; i--) {
+      *(*pout)++ = hex_char[buf[i]];
+    }
+  } else if (**pin == 'c') {
+    char val = va_arg(*args, int);
+    *(*pout)++ = val;
+  } else if (**pin == 'p') {
+    *(*pout)++ = '0';
+    *(*pout)++ = 'x';
+    const char hex_char[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+    unsigned int val = va_arg(*args, unsigned int);
+    int buf[24] = {0};
+    int i = 0;
+    for (; i < 10 && val; i++) {
+      buf[i] = (val % 16);
+      val /= 16;
+    }
+
+    if (i == 0) i++;
+    for (int j = 0; j < pref.lpad - i; j++)
+      *(*pout)++ = pref.pad_char;
+    for (i--; i >= 0; i--) {
+      *(*pout)++ = hex_char[buf[i]];
+    }
+  } else {
+    putch(**pin);
+    assert(false);
+  }
+  (*pin)++;
 }
 
-int vsprintf(char *buf, const char *fmt, va_list args) {
-  char *pout = buf;
-  char *pin = (char *)fmt;
+int sprint_read_pad(char** pout, char** pin) {
+  int sum = **pin - '0';
+  if (sum < 0 || sum > 9) return -1;
+  (*pin)++;
+  int ans = sprint_read_pad(pout, pin);
+  if (ans != -1) return sum * 10 + ans;
+  return sum;
+}
+
+void sprint_format(char** pout, char** pin, va_list* args) {
+  switch (**pin) {
+    case '%':
+      *(*pout)++ = '%';
+      break;
+
+    case '0':
+      (*pin)++;
+      pref.pad_char = '0';
+      sprint_format(pout, pin, args);
+      break;
+
+    case '1' ... '9':
+      pref.lpad = sprint_read_pad(pout, pin);
+      sprint_format(pout, pin, args);
+      break;
+
+    case 'l':
+      (*pin)++;
+      sprint_format(pout, pin, args);
+      break;
+
+    default:
+      sprint_basic_format(pout, pin, args);
+  }
+}
+
+int vsprintf(char *out, const char *fmt, va_list args) {
+  char *pout = out;
+  char *pin = (void*)fmt;
   while (*pin) {
+    pref.lpad = 0;
+    pref.pad_char = ' ';
     switch (*pin) {
-      case '%': {
+      case '%':
         pin++;
-        // sprintf_base(&pout, &pin, &args);
-        switch (*pin) {
-          case 'd': {
-            char buf[32] = {0};
-            int num = va_arg(args, int);
-            itoa(num, buf);
-
-            memcpy(pout, buf, strlen(buf));
-            (pout) += strlen(buf);
-            break;
-          }
-          case 's': {
-            char *s = va_arg(args, char *);
-            memcpy(pout, s, strlen(s));
-            (pout) += strlen(s);
-
-            break;
-          }
-          default:
-            printf("dfsfd\n");
-            break;
-        }
-        pin++;
-        break;
-      }
-
-      default: {
+        sprint_format(&pout, &pin, &args);
+      default:
         *pout = *pin;
-        pout++;
         pin++;
-        break;
-      }
+        pout++;
     }
   }
-  *pout = '\0';
-  return pout - buf;
+  
+  *pout = 0;
+  return pout - out;
 }
 
-int sprintf(char *buf, const char *fmt, ...) {
+int sprintf(char *out, const char *fmt, ...) {
   va_list args;
-  int i;
-
   va_start(args, fmt);
-  i = vsprintf(buf, fmt, args);
+  int len = vsprintf(out, fmt, args);
   va_end(args);
-
-  return i;
+  return len;
 }
 
 int snprintf(char *out, size_t n, const char *fmt, ...) {
-  panic("Not implemented");
+  // TODO: Limit output size
+  va_list args;
+  va_start(args, fmt);
+  int len = vsprintf(out, fmt, args);
+  va_end(args);
+  return len;
 }
 
-// https://elixir.bootlin.com/linux/latest/source/lib/vsprintf.c#L2712
-int vsnprintf(char *buf, size_t size, const char *fmt, va_list args) {
+int vsnprintf(char *out, size_t n, const char *fmt, va_list ap) {
   return 0;
 }
 

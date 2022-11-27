@@ -72,14 +72,30 @@ def_EHelper(mulh) {
   rtl_muls_hi(s, ddest, dsrc1, dsrc2);
 }
 
+def_EHelper(mulhu) {
+  DbgPrintf("op mulhu. ddest = %d src1 = %d src2 = %d\n", *ddest, *dsrc1, *dsrc2);
+  rtl_mulu_hi(s, ddest, dsrc1, dsrc2);
+}
+
 
 def_EHelper(div) {
   DbgPrintf("op div. ddest = %d src1 = %d src2 = %d\n", *ddest, *dsrc1, *dsrc2);
   rtl_divs_q(s, ddest, dsrc1, dsrc2);
 }
 
+def_EHelper(divu) {
+  DbgPrintf("op divu. ddest = %d src1 = %d src2 = %d\n", *ddest, *dsrc1, *dsrc2);
+  rtl_divu_q(s, ddest, dsrc1, dsrc2);
+}
+
 def_EHelper(rem) {
   DbgPrintf("op rem. ddest = %d src1 = %d src2 = %d\n", *ddest, *dsrc1, *dsrc2);
   rtl_divs_r(s, ddest, dsrc1, dsrc2);
   DbgPrintf("op rem. ddest = %d \n", *ddest);
+}
+
+def_EHelper(remu) {
+  DbgPrintf("op remu. ddest = %d src1 = %d src2 = %d\n", *ddest, *dsrc1, *dsrc2);
+  rtl_divu_r(s, ddest, dsrc1, dsrc2);
+  DbgPrintf("op remu. ddest = %d \n", *ddest);
 }

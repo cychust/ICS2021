@@ -28,7 +28,7 @@
 #define TODO() panic("please implement me")
 
 #ifdef DEBUG_ON
-#define DbgPrintf(fmt, args...) printf(fmt, args...)
+#define DbgPrintf(fmt, args...) printf(fmt, ##args)
 #else
 #define DbgPrintf(fmt, args...) /* do nothing */
 #endif
