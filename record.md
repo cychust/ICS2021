@@ -46,3 +46,6 @@ make ARCH=$ISA-nemu run
 [           bit] PASS!
 [ to-lower-case] PASS!
 ````
+
+![Display Test](img/display.png)
+![Slider](img/截图%202022-11-27%2022-04-38.png)
